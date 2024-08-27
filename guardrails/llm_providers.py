@@ -768,6 +768,45 @@ class ArbitraryCallable(PromptCallableBase):
         )
 
 
+class UnifyAICallable(PromptCallableBase):
+    def __init__(self, function_name: str, *args, **kwargs):
+        self.function_name = function_name
+        super().__init__(*args, **kwargs)
+
+    def _invoke_llm(self, client: Any, *args, **kwargs) -> LLMResponse:
+        """Wrapper for a hypothetical UnifyAI callable.
+
+        The `client` object is now passed as an argument.
+        """
+
+        trace_operation(
+            input_mime_type="application/json",
+            input_value={
+                "function_name": self.function_name,
+                "args": args,
+                **kwargs,
+            },
+        )
+
+        try:
+            # Example: Dynamically call the function on the client object
+            response_data = getattr(client, self.function_name)(*args, **kwargs)
+
+            trace_operation(
+                output_mime_type="application/json", output_value=response_data
+            )
+
+            # Extract relevant output (adjust based on the function's output)
+            output = response_data.get("result", "")
+
+            return LLMResponse(output=output)
+
+        except Exception as e:
+            raise PromptCallableException(
+                f"Error calling UnifyAI function '{self.function_name}': {e}"
+            ) from e
+
+
 def get_llm_ask(
     llm_api: Optional[Callable] = None,
     *args,
@@ -859,6 +898,14 @@ def get_llm_ask(
     # Let the user pass in an arbitrary callable.
     if llm_api is not None:
         return ArbitraryCallable(*args, llm_api=llm_api, **kwargs)
+
+    if hasattr(llm_api, "is_unify_client") and llm_api.is_unify_client:
+        function_name = kwargs.pop(
+            "unify_function", None
+        )  # Get function name from kwargs
+        if not function_name:
+            raise ValueError("`unify_function` argument is required for UnifyAI calls.")
+        return UnifyAICallable(function_name=function_name)
 
 
 ###
