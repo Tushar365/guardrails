@@ -8,12 +8,19 @@ def check_if_prefixed(text, prefix_list):
 def module_to_string(
     module,
     display_string,
-    ignore_prefix_list=[],
-    include_list=[],
+    ignore_prefix_list=None,
+    include_list=None,
     indents=1,
-    visited=set(),
-    ignore_attrs=False
+    visited=None,
+    ignore_attrs=False,
 ):
+    if visited is None:
+        visited = set()
+    if ignore_prefix_list is None:
+        ignore_prefix_list = []
+    if include_list is None:
+        include_list = []
+
     if module in visited:
         return ""
     visited.add(module)
@@ -25,47 +32,49 @@ def module_to_string(
 
     try:
         for name, obj in inspect.getmembers(module):
-            if ignore_prefix_list != [] and check_if_prefixed(name, ignore_prefix_list):
+            if ignore_prefix_list and check_if_prefixed(name, ignore_prefix_list):
                 continue
-            if include_list != [] and name not in include_list:
+            if include_list and name not in include_list:
                 continue
 
             if inspect.isclass(obj) or inspect.ismodule(obj):
-                # ignore any class that does not belong to this module or do not have a module
-                # ignore if no module
+                # ignore any class not belonging to this module or without a module
                 if not hasattr(obj, "__module__") or not obj.__module__:
                     continue
 
-                if (
-                    not obj.__module__.startswith(module.__name__)
-                    and obj.__module__ != "builtins"
+                if not (
+                    obj.__module__.startswith(module.__name__)
+                    or obj.__module__ == "builtins"
                 ):
                     continue
+
                 unwrapped = module_to_string(
                     obj,
+                    display_string=obj.__name__,
                     ignore_prefix_list=ignore_prefix_list,
                     ignore_attrs=ignore_attrs,
                     indents=2,
-                    # include_list=include_list,
-                    display_string=obj.__name__,
                     visited=visited,
+                    # include_list=include_list,
                 )
                 module_str += f"{unwrapped}\n"
             elif not ignore_attrs:
                 module_str += f"{attr_to_string(name, obj)}\n"
     except Exception as e:
-        print(f"failed to get members of {module.__name__}")
-        print(e)
-        pass
-
+        print(f"Failed to get members of {module.__name__}: {e}")
+        # Consider logging the error instead of just printing
     return module_str
 
 
 def class_to_string(
-    cls, ignore_prefix_list=[], include_list=[], indents=1, display_string=None
+    cls, ignore_prefix_list=None, include_list=None, indents=1, display_string=None
 ):
     if display_string is None:
         display_string = cls.__name__
+    if include_list is None:
+        include_list = []
+    if ignore_prefix_list is None:
+        ignore_prefix_list = []
     return module_to_string(
         cls,
         display_string,
@@ -84,10 +93,7 @@ def attr_to_string(name, obj):
         attr_str += routine_to_string(name, obj)
 
     if docstring:
-        attr_str += f"""\n{docstring}\n"""
-        # print(f"Properties of {obj.__class__.__name__}:")
-        # for prop in properties:
-        #     print(f"  - {prop}")
+        attr_str += f"\n{docstring}\n"
 
     return attr_str
 
@@ -100,29 +106,18 @@ def routine_to_string(name, obj):
         signature = None
     if signature:
         argspec = "(\n"
-        paramlist = []
-        for param in signature.parameters:
-            paramlist.append(f"  {signature.parameters[param]}")
+        paramlist = [
+            f"  {signature.parameters[param]}" for param in signature.parameters
+        ]
 
         argspec += ",\n".join(paramlist)
 
         argspec += "\n)"
 
-        # add return sig if useful
         if signature.return_annotation != inspect.Signature.empty:
             argspec += f" -> {signature.return_annotation}"
 
     return f"\n```\n{name}{argspec}\n```\n"
-
-
-# precondition: obj is a function
-# def print_method_headers(code):
-# pydoc.
-# tree = ast.parse(code)
-# for node in ast.walk(tree):
-#     if isinstance(node, ast.FunctionDef):
-#         args = ", ".join(arg.arg for arg in node.args.args)
-#         print(f"{node.name}({args})")
 
 
 def clean_obj_type_str(obj_type_str):
