@@ -7395,6 +7395,7 @@ huggingface = ["jsonformer", "torch", "transformers"]
 manifest = ["manifest-ml"]
 sql = ["sqlalchemy", "sqlglot", "sqlvalidator"]
 vectordb = ["faiss-cpu", "numpy"]
+unify=["unifyai"]
 
 [metadata]
 lock-version = "2.0"
